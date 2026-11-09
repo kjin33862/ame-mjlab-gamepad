@@ -3,6 +3,12 @@
 Drive a trained [ame_mjlab](https://github.com/psrobotics/ame_mjlab) Unitree G1
 velocity policy live with a gamepad, in mjlab's play viewer.
 
+This is a small add-on that runs **on top of** Shuang's
+[ame_mjlab](https://github.com/psrobotics/ame_mjlab) (`psrobotics/ame_mjlab`).
+It is **not part of ame_mjlab** and is not maintained by its authors. It
+imports the `ame` package from an ame_mjlab checkout and copies none of its
+code.
+
 `play_gamepad.py` opens the play environment of a task, loads your checkpoint
 and, every control step, overwrites the twist command (`vx, vy, wz`) of the
 viewed robot with the gamepad sticks. The policy sees that command and the
@@ -61,6 +67,42 @@ uv run --project ~/ame_mjlab python play_gamepad.py \
 (mjlab, torch and the registered `ame` tasks) without installing anything
 into this folder.
 
+## Two modes
+
+**Task play board** (no `--terrain`). The task's own play environment, the
+same one `uv run play <task>` opens, with one robot. Pressing B gives back
+that task's random commands.
+
+**Single evaluation tile** (`--terrain NAME --difficulty X`). One 1 × 1
+evaluation tile of a single terrain family at a fixed difficulty, as
+`scripts/view_eval.py` in the fork builds it. The robot spawns at the tile
+centre with yaw 0. Map and proprioceptive noise are off, there is no episode
+time limit, and B switches to the gap task's training twist commands. The
+actor's observation set (with or without `base_lin_vel`) is read from the
+checkpoint. This mode needs `ame.eval` from the fork's `eval` branch (see
+Requirements).
+
+Valid `--terrain` names:
+
+| name | terrain |
+|---|---|
+| `flat` | flat ground |
+| `pyramid_stairs` | pyramid stairs, climbing up |
+| `pyramid_stairs_inv` | inverted pyramid stairs, climbing down |
+| `random_stairs` | stairs with random step heights |
+| `open_stairs` | mjlab's open stairs (`BoxOpenStairsTerrainCfg`) |
+| `random_grid` | random-height grid of blocks |
+| `discrete_obstacles` | scattered box obstacles |
+| `random_rough` | random rough ground |
+| `hf_pyramid_slope` | pyramid slope, up |
+| `hf_pyramid_slope_inv` | inverted pyramid slope, down |
+| `wave` | wave-shaped ground |
+| `stepping_stones` | stepping stones with a centre platform |
+| `stone_lattice` | the gap task's stone lattice (gap = 0.45 × difficulty) |
+
+All but `stone_lattice` are the families of the AME training mix
+(`ame.eval.EVAL_TERRAINS`).
+
 ## Controller mapping
 
 | control | action |
@@ -90,7 +132,7 @@ when it comes back.
 | `--task TASK` | *(required)* | Task id, e.g. `Ame-Velocity-Rough-G1` (`uv run list-envs` in ame_mjlab lists them). |
 | `--checkpoint-file PATH` | *(required)* | Checkpoint to load (`~` is expanded). |
 | `--viewer {auto,native,viser}` | `auto` | `native` = MuJoCo window, `viser` = browser viewer. `auto` picks `native` when `DISPLAY` or `WAYLAND_DISPLAY` is set, else `viser`. |
-| `--terrain NAME` | none | Instead of the task's play board, one evaluation tile of a single terrain family with noise off. **Needs the fork's `eval` branch.** One of `flat`, `pyramid_stairs`, `pyramid_stairs_inv`, `random_stairs`, `open_stairs`, `random_grid`, `discrete_obstacles`, `random_rough`, `hf_pyramid_slope`, `hf_pyramid_slope_inv`, `wave`, `stepping_stones`, `stone_lattice`. |
+| `--terrain NAME` | none | One evaluation tile of that terrain family instead of the task's play board (see [Two modes](#two-modes) for the names). **Needs the fork's `eval` branch.** |
 | `--difficulty X` | `0.0` | Terrain difficulty in [0, 1], used with `--terrain`. |
 | `--js-device PATH` | first gamepad found | Joystick device, e.g. `/dev/input/js0`. |
 | `--dead-zone X` | `0.1` | Stick dead zone as a fraction of full deflection. |
@@ -113,6 +155,9 @@ CKPT=path/to/model_9999.pt
 # Basic: the task's play board, native window if you have a display
 $P --task Ame-Velocity-Rough-G1 --checkpoint-file $CKPT
 
+# The gap task's play board
+$P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT
+
 # Browser viewer (e.g. over SSH; forward the port it prints)
 $P --task Ame-Velocity-Rough-G1 --checkpoint-file $CKPT --viewer viser
 
@@ -125,13 +170,31 @@ $P --task Ame-Velocity-Rough-G1 --checkpoint-file $CKPT --max-vx 0.8 --min-vx 0
 # Beyond the training range (prints a warning)
 $P --task Ame-Velocity-Rough-G1 --checkpoint-file $CKPT --max-wz 2.0
 
-# One evaluation tile: descending pyramid stairs at difficulty 0.25 (fork's eval branch)
+# One evaluation tile: descending pyramid stairs at difficulty 0.5 (fork's eval branch)
 $P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT \
-  --terrain pyramid_stairs_inv --difficulty 0.25
+  --terrain pyramid_stairs_inv --difficulty 0.5
+
+# The gap task's stone lattice at difficulty 0.3
+$P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT \
+  --terrain stone_lattice --difficulty 0.3
 
 # Run on the CPU
 $P --task Ame-Velocity-Rough-G1 --checkpoint-file $CKPT --device cpu
 ```
+
+## Known harmless warnings and output
+
+- **`GLFWError: (65548) b'Wayland: The platform does not provide the window
+  position'`**. Printed once when the native window opens on a Wayland
+  desktop. GLFW cannot query window positions on Wayland. The viewer works
+  normally.
+- **Long manager tables and the actor/critic model printout at startup**.
+  This is mjlab's and rsl_rl's normal logging, not an error.
+- **`[gamepad] connected: /dev/input/jsN` before everything else**. The pad
+  is opened before the environment is built, so this comes first.
+- **The startup `[gamepad] ...` lines appear only at exit when output is
+  redirected to a file**. Python buffers stdout when it is not a terminal.
+  Use `python -u` if you are logging to a file.
 
 ## Troubleshooting
 
@@ -173,9 +236,9 @@ branch (see Requirements), or drop `--terrain`.
 Check the path. The checkpoint must come from a run of the same `--task`,
 because loading is strict.
 
-**No window appears / GLFW errors**
-Without a display, `auto` uses viser; open the URL it prints. On Wayland a
-`GLFWError: ... does not provide the window position` warning is harmless.
+**No window appears**
+Without a display, `auto` uses viser; open the URL it prints. For the
+Wayland `GLFWError` see [Known harmless warnings](#known-harmless-warnings-and-output).
 
 **`AttributeError` inside the viewer or the command term**
 Your mjlab is probably not the tested commit `898a700`. Use the version
