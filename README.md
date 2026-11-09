@@ -42,7 +42,7 @@ CKPT=path/to/model_9999.pt
 # The task's play board
 $P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT
 
-# One evaluation tile: descending stairs at difficulty 0.5
+# One evaluation tile: climbing stairs out of a pit at difficulty 0.5
 $P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT \
   --terrain pyramid_stairs_inv --difficulty 0.5
 
@@ -50,7 +50,8 @@ $P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT \
 $P --task Ame-Mjlab-Gap-Velocity-Rough-G1 --checkpoint-file $CKPT --max-vx 0.8 --viewer viser
 ```
 
-`--terrain` names: `flat`, `pyramid_stairs`, `pyramid_stairs_inv`,
+`--terrain` names: `flat`, `pyramid_stairs` (descending),
+`pyramid_stairs_inv` (climbing out of a pit),
 `random_stairs`, `open_stairs`, `random_grid`, `discrete_obstacles`,
 `random_rough`, `hf_pyramid_slope`, `hf_pyramid_slope_inv`, `wave`,
 `stepping_stones`, `stone_lattice`.
